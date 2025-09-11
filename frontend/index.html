@@ -1,0 +1,102 @@
+<!doctype html>
+<html>
+<head>
+<link rel="icon" type="image/jpeg" href="/static/favicon.jpeg">
+<meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>AI-Smart Reader</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style> body { background: linear-gradient(180deg,#f8fafc,white); } .card { background: white; border-radius:12px; box-shadow: 0 10px 30px rgba(2,6,23,0.08); } .scroll { max-height:420px; overflow:auto; } </style>
+</head>
+<body class="min-h-screen flex items-center justify-center p-6">
+  <div class="w-full max-w-5xl">
+    <div class="card p-6">
+      <div class="flex items-center justify-between mb-4">
+        <h1 class="text-2xl font-semibold">AI-Smart Reader</h1>
+        <div class="text-sm text-gray-500">Upload PDF/DOCX/TXT • Generative answers (OpenAI optional)</div>
+      </div>
+
+      <div class="grid grid-cols-3 gap-6">
+        <div class="col-span-1">
+          <div class="mb-4">
+            <label class="block text-sm font-medium text-gray-700">Upload document</label>
+            <div class="mt-2 flex items-center">
+              <input id="fileInput" type="file" accept=".pdf,.docx,.txt" class="block w-full text-sm text-gray-500"/>
+            </div>
+            <button id="uploadBtn" class="mt-3 w-full py-2 rounded-lg bg-emerald-500 text-white">Upload</button>
+            <div class="mt-4 text-xs text-gray-500">Supported: PDF, DOCX, TXT. No account needed.</div>
+          </div>
+
+          <div class="mt-6">
+            <label class="block text-sm font-medium text-gray-700">Documents</label>
+            <select id="docSelect" class="mt-2 block w-full rounded-md border-gray-200"></select>
+            <button id="refreshDocs" class="mt-3 w-full py-2 rounded-lg bg-sky-500 text-white">Refresh</button>
+          </div>
+
+          <div class="mt-6">
+            <label class="flex items-center space-x-2"><input id="aiFlag" type="checkbox" class="rounded"> <span class="text-sm text-gray-700">Use OpenAI (if available)</span></label>
+            <div class="mt-2 text-xs text-gray-500">Enable for better generative answers. Set OPENAI_API_KEY on server.</div>
+            <button id="summarizeBtn" class="mt-3 w-full py-2 rounded-lg bg-purple-600 text-white">Summarize Document</button>
+          </div>
+        </div>
+
+        <div class="col-span-2">
+          <div class="mb-4">
+            <label class="block text-sm font-medium text-gray-700">Ask a question</label>
+            <div class="mt-2 flex gap-2">
+              <input id="question" type="text" placeholder="Ask something about the selected document..." class="flex-1 rounded-md border-gray-200 p-3"/>
+              <button id="askBtn" class="px-4 py-2 rounded-md bg-indigo-600 text-white">Ask</button>
+            </div>
+            <div class="mt-3 text-xs text-gray-500">Tip: Be specific for best results.</div>
+          </div>
+
+          <div class="card p-4 scroll" id="resultArea">
+            <div id="history"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="mt-6 text-xs text-gray-500">Disclaimer: This Project is done by Jagathiswar R from Manakula Vinayagar Institute fo Technology</div>
+    </div>
+  </div>
+
+<script>
+async function api(url, opt){ try{ const res = await fetch(url, opt); return await res.json(); } catch(e){ return {ok:false, error:e.toString()}; } }
+
+function append(html){ const h = document.getElementById('history'); const d = document.createElement('div'); d.className='mb-4'; d.innerHTML = html; h.prepend(d); }
+
+document.getElementById('refreshDocs').addEventListener('click', async ()=>{
+  const j = await api('/api/docs'); const sel = document.getElementById('docSelect'); sel.innerHTML = '<option value="">-- Select document --</option>';
+  if(j.ok) j.docs.forEach(d=>{ const o = document.createElement('option'); o.value=d.doc_id; o.textContent=d.filename + ' ('+d.chunks+' chunks)'; sel.appendChild(o); });
+  else append('<div class="text-sm text-red-500">No docs</div>');
+});
+
+document.getElementById('uploadBtn').addEventListener('click', async ()=>{
+  const f = document.getElementById('fileInput').files[0]; if(!f){ alert('Choose file'); return; }
+  const fd = new FormData(); fd.append('file', f); append('<div class="text-sm text-gray-500">Uploading '+f.name+'...</div>');
+  const res = await fetch('/api/upload',{method:'POST',body:fd}); const j = await res.json();
+  if(j.ok){ append('<div class="text-sm text-green-600">Uploaded '+j.filename+'</div>'); document.getElementById('refreshDocs').click(); setTimeout(()=>{ document.getElementById('docSelect').value=j.doc_id; },200); }
+  else append('<div class="text-sm text-red-500">Upload failed: '+(j.message||'')+'</div>');
+});
+
+document.getElementById('askBtn').addEventListener('click', async ()=>{
+  const doc_id = document.getElementById('docSelect').value; const q = document.getElementById('question').value.trim(); const use_ai = document.getElementById('aiFlag').checked;
+  if(!doc_id){ alert('Select a document'); return; } if(!q){ alert('Type a question'); return; }
+  append('<div><div class="text-sm font-medium text-sky-600">You:</div><div class="text-sm text-gray-800">'+q+'</div></div>');
+  append('<div class="mt-2 text-sm text-gray-500">Searching document...</div>');
+  const res = await fetch('/api/query',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({doc_id:doc_id,question:q,use_ai:use_ai})}); const j = await res.json();
+  if(j.ok){ append('<div class="mt-2"><div class="text-sm font-medium text-emerald-600">Answer:</div><div class="text-sm text-gray-800 mt-1">'+(j.answer||'')+'</div></div>'); j.top_chunks.forEach(tc=>{ append('<div class="mt-2 p-3 rounded border bg-gray-50"><div class="text-xs text-gray-500">score: '+tc.score.toFixed(3)+'</div><div class="mt-1 text-sm">'+tc.chunk+'</div></div>'); }); }
+  else append('<div class="text-sm text-red-500">Query failed: '+(j.message||j.error||'')+'</div>');
+});
+
+document.getElementById('summarizeBtn').addEventListener('click', async ()=>{
+  const doc_id = document.getElementById('docSelect').value; if(!doc_id){ alert('Select a document'); return; }
+  append('<div class="text-sm text-gray-500">Generating summary...</div>');
+  const res = await fetch('/api/query',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({doc_id:doc_id,question:'provide a concise summary of the document',use_ai: document.getElementById('aiFlag').checked})}); const j = await res.json();
+  if(j.ok) append('<div class="mt-2"><div class="text-sm font-medium text-indigo-600">Summary:</div><div class="text-sm text-gray-800 mt-1">'+(j.answer||'')+'</div></div>'); else append('<div class="text-sm text-red-500">Summary failed</div>');
+});
+
+window.onload = ()=>{ document.getElementById('refreshDocs').click(); append('<div class="text-sm text-gray-500">Welcome — upload a document and ask questions. Enable OpenAI on the server for generative answers.</div>'); }
+</script>
+</body>
+</html>
