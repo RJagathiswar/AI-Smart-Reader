@@ -19,6 +19,8 @@ AI-Smart Reader is an intelligent reading assistant that allows users to upload 
 
 ---
 
+![image alt](https://github.com/RJagathiswar/AI-Smart-Reader/blob/24771a77276ce44c49979c6b64aeae76f2be38b3/WhatsApp%20Image%202025-12-29%20at%209.25.33%20PM.jpeg)
+
 ## 🛠️ Tech Stack
 - Backend: Python (Flask)
 - Frontend: HTML, CSS, JavaScript
@@ -45,7 +47,6 @@ source venv/bin/activate
 pip install -r requirements.txt
 # (optional) export OPENAI_API_KEY="sk-..."
 python app.py
-
 
 
 
